@@ -1,6 +1,7 @@
 {
   "app": {
-    "name": "Securo"
+    "name": "Securo",
+    "versionAriaLabel": "Running version {{version}}"
   },
   "cmdk": {
     "title": "Command palette",

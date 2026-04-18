@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import { APP_VERSION } from '@/lib/build-info'
 import { ShellLogo } from '@/components/shell-logo'
 import {
   LayoutDashboard,
@@ -63,25 +64,39 @@ type NavItem =
   | { type: 'separator'; labelKey: string }
 
 const navItems: NavItem[] = [
-  { type: 'link', key: 'dashboard',    path: '/',             icon: LayoutDashboard },
-  { type: 'link', key: 'transactions', path: '/transactions', icon: ArrowLeftRight },
+  { type: 'link', key: 'dashboard', path: '/', icon: LayoutDashboard },
+  {
+    type: 'link',
+    key: 'transactions',
+    path: '/transactions',
+    icon: ArrowLeftRight,
+  },
   { type: 'separator', labelKey: 'nav.groupAccounts' },
-  { type: 'link', key: 'accounts',     path: '/accounts',     icon: Building2 },
-  { type: 'link', key: 'import',       path: '/import',       icon: Upload },
+  { type: 'link', key: 'accounts', path: '/accounts', icon: Building2 },
+  { type: 'link', key: 'import', path: '/import', icon: Upload },
   { type: 'separator', labelKey: 'nav.groupAnalysis' },
-  { type: 'link', key: 'reports',      path: '/reports',      icon: BarChart3 },
-  { type: 'link', key: 'assets',       path: '/assets',       icon: Landmark },
+  { type: 'link', key: 'reports', path: '/reports', icon: BarChart3 },
+  { type: 'link', key: 'assets', path: '/assets', icon: Landmark },
   { type: 'separator', labelKey: 'nav.groupSetup' },
-  { type: 'link', key: 'budgets',      path: '/budgets',      icon: PiggyBank },
-  { type: 'link', key: 'goals',        path: '/goals',        icon: Target },
-  { type: 'link', key: 'recurring',    path: '/recurring',    icon: Repeat },
-  { type: 'link', key: 'categories',   path: '/categories',   icon: Tag },
-  { type: 'link', key: 'payees',      path: '/payees',       icon: Users },
-  { type: 'link', key: 'rules',        path: '/rules',        icon: SlidersHorizontal },
+  { type: 'link', key: 'budgets', path: '/budgets', icon: PiggyBank },
+  { type: 'link', key: 'goals', path: '/goals', icon: Target },
+  { type: 'link', key: 'recurring', path: '/recurring', icon: Repeat },
+  { type: 'link', key: 'categories', path: '/categories', icon: Tag },
+  { type: 'link', key: 'payees', path: '/payees', icon: Users },
+  { type: 'link', key: 'rules', path: '/rules', icon: SlidersHorizontal },
 ]
 
 function formatCurrency(value: number, currency = 'USD', locale = 'en-US') {
-  return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(value)
+  return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(
+    value,
+  )
+}
+
+const versionClampStyle = {
+  display: '-webkit-box',
+  WebkitBoxOrient: 'vertical' as const,
+  WebkitLineClamp: 2,
+  overflow: 'hidden',
 }
 
 export function AppLayout() {
@@ -101,14 +116,22 @@ export function AppLayout() {
   const [backingUp, setBackingUp] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   useCommandPaletteHotkey(setPaletteOpen)
-  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform)
+  const isMac =
+    typeof navigator !== 'undefined' &&
+    /Mac|iPhone|iPad|iPod/.test(navigator.platform)
 
-  const showTour = user && !user.preferences?.onboarding_completed && !localStorage.getItem('onboarding_completed')
+  const showTour =
+    user &&
+    !user.preferences?.onboarding_completed &&
+    !localStorage.getItem('onboarding_completed')
 
   const handleTourComplete = useCallback(async () => {
     localStorage.setItem('onboarding_completed', 'true')
     try {
-      const prefs = { ...(user?.preferences || {}), onboarding_completed: true }
+      const prefs = {
+        ...(user?.preferences || {}),
+        onboarding_completed: true,
+      }
       const updated = await authApi.updateMe({ preferences: prefs })
       updateUser(updated)
     } catch {
@@ -134,6 +157,7 @@ export function AppLayout() {
   const totalBalance = allAccounts.reduce((sum, a) => {
     return sum + Number(a.balance_primary ?? a.current_balance)
   }, 0)
+  const versionA11yLabel = t('app.versionAriaLabel', { version: APP_VERSION })
 
   return (
     <div className="min-h-screen bg-background">
@@ -148,7 +172,9 @@ export function AppLayout() {
         </button>
         <div className="flex items-center gap-2">
           <ShellLogo size={22} className="text-primary shrink-0" />
-          <span className="font-bold text-sidebar-foreground">{t('app.name')}</span>
+          <span className="font-bold text-sidebar-foreground">
+            {t('app.name')}
+          </span>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <button
@@ -170,21 +196,32 @@ export function AppLayout() {
             onClick={toggleTheme}
             className="text-sidebar-muted hover:text-sidebar-foreground transition-colors p-1"
             title={isDark ? t('settings.themeLight') : t('settings.themeDark')}
-            aria-label={isDark ? t('settings.themeLight') : t('settings.themeDark')}
+            aria-label={
+              isDark ? t('settings.themeLight') : t('settings.themeDark')
+            }
           >
             {isDark ? <Sun size={18} /> : <Moon size={18} />}
           </button>
-          <UserMenu userInitial={userInitial} logout={logout} onChangePassword={() => setChangePasswordOpen(true)} onTwoFactor={() => setTwoFactorOpen(true)} backingUp={backingUp} onBackup={async () => {
-                    setBackingUp(true)
-                    try {
-                      await backupApi.download()
-                      toast.success(t('backup.success'))
-                    } catch {
-                      toast.error(t('backup.error'))
-                    } finally {
-                      setBackingUp(false)
-                    }
-                  }} dark isAdmin={user?.is_superuser} />
+          <UserMenu
+            userInitial={userInitial}
+            logout={logout}
+            onChangePassword={() => setChangePasswordOpen(true)}
+            onTwoFactor={() => setTwoFactorOpen(true)}
+            backingUp={backingUp}
+            onBackup={async () => {
+              setBackingUp(true)
+              try {
+                await backupApi.download()
+                toast.success(t('backup.success'))
+              } catch {
+                toast.error(t('backup.error'))
+              } finally {
+                setBackingUp(false)
+              }
+            }}
+            dark
+            isAdmin={user?.is_superuser}
+          />
         </div>
       </header>
 
@@ -201,14 +238,16 @@ export function AppLayout() {
         <aside
           className={cn(
             'fixed inset-y-0 left-0 z-50 w-60 bg-sidebar border-r border-sidebar-border flex flex-col transform transition-transform lg:translate-x-0 shrink-0 overflow-y-auto',
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full',
           )}
         >
           {/* Logo */}
           <div className="flex h-16 min-h-16 items-center justify-between px-5 border-b border-sidebar-border shrink-0">
             <div className="flex items-center gap-2.5">
               <ShellLogo size={24} className="text-primary shrink-0" />
-              <span className="font-bold text-lg text-sidebar-foreground tracking-tight">{t('app.name')}</span>
+              <span className="font-bold text-lg text-sidebar-foreground tracking-tight">
+                {t('app.name')}
+              </span>
             </div>
             <div className="flex items-center gap-0.5">
               <button
@@ -222,8 +261,12 @@ export function AppLayout() {
               <button
                 onClick={toggleTheme}
                 className="text-sidebar-muted hover:text-sidebar-foreground transition-colors p-1 rounded-md hover:bg-sidebar-accent"
-                title={isDark ? t('settings.themeLight') : t('settings.themeDark')}
-                aria-label={isDark ? t('settings.themeLight') : t('settings.themeDark')}
+                title={
+                  isDark ? t('settings.themeLight') : t('settings.themeDark')
+                }
+                aria-label={
+                  isDark ? t('settings.themeLight') : t('settings.themeDark')
+                }
               >
                 {isDark ? <Sun size={16} /> : <Moon size={16} />}
               </button>
@@ -238,7 +281,7 @@ export function AppLayout() {
               className={cn(
                 'group flex w-full items-center gap-2 rounded-lg border border-sidebar-border/80 bg-sidebar-accent/40 px-3 py-2',
                 'text-[12.5px] text-sidebar-muted transition-all',
-                'hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-sidebar-border'
+                'hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-sidebar-border',
               )}
               aria-label={t('cmdk.triggerAria')}
             >
@@ -263,9 +306,10 @@ export function AppLayout() {
                 )
               }
 
-              const isActive = item.path === '/'
-                ? location.pathname === '/'
-                : location.pathname.startsWith(item.path)
+              const isActive =
+                item.path === '/'
+                  ? location.pathname === '/'
+                  : location.pathname.startsWith(item.path)
               const Icon = item.icon
               return (
                 <Link
@@ -277,12 +321,15 @@ export function AppLayout() {
                     'flex items-center gap-3 text-[13px] font-medium transition-all rounded-lg px-3 py-2',
                     isActive
                       ? 'bg-primary/[0.08] text-primary border-l-[3px] border-primary pl-[9px]'
-                      : 'text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                      : 'text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground',
                   )}
                 >
                   <Icon
                     size={17}
-                    className={cn('shrink-0', isActive ? 'text-primary' : 'text-sidebar-muted')}
+                    className={cn(
+                      'shrink-0',
+                      isActive ? 'text-primary' : 'text-sidebar-muted',
+                    )}
                   />
                   <span>{t(`nav.${item.key}`)}</span>
                 </Link>
@@ -297,53 +344,79 @@ export function AppLayout() {
                 onClick={() => setAccountsExpanded(!accountsExpanded)}
                 className="flex items-center justify-between w-full px-3 py-2 hover:text-sidebar-foreground transition-colors"
               >
-                <span className="text-[11px] uppercase tracking-[0.12em] font-semibold text-sidebar-muted">{t('accounts.title')}</span>
+                <span className="text-[11px] uppercase tracking-[0.12em] font-semibold text-sidebar-muted">
+                  {t('accounts.title')}
+                </span>
                 <div className="flex items-center gap-2">
-                  <span className={`tabular-nums font-medium text-xs ${totalBalance < 0 ? 'text-rose-400' : 'text-sidebar-muted'}`}>
+                  <span
+                    className={`tabular-nums font-medium text-xs ${totalBalance < 0 ? 'text-rose-400' : 'text-sidebar-muted'}`}
+                  >
                     {mask(formatCurrency(totalBalance, userCurrency, locale))}
                   </span>
                   <ChevronRight
                     size={12}
-                    className={cn('text-sidebar-muted transition-transform', accountsExpanded && 'rotate-90')}
+                    className={cn(
+                      'text-sidebar-muted transition-transform',
+                      accountsExpanded && 'rotate-90',
+                    )}
                   />
                 </div>
               </button>
               {accountsExpanded && (
                 <div className="mt-1 space-y-0.5">
-                  {[...allAccounts].sort((a, b) => Math.abs(Number(b.current_balance)) - Math.abs(Number(a.current_balance))).slice(0, accountsShowAll ? allAccounts.length : 3).map((acc) => {
-                    const balance = Number(acc.current_balance)
-                    const prevBalance = acc.previous_balance ?? 0
-                    const pctChange = prevBalance !== 0
-                      ? ((balance - prevBalance) / Math.abs(prevBalance)) * 100
-                      : null
-                    const typeKey = acc.type.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase()).replace(/^./, c => c.toUpperCase())
-
-                    return (
-                      <Link
-                        key={acc.id}
-                        to={`/accounts/${acc.id}`}
-                        onClick={() => setSidebarOpen(false)}
-                        className="flex items-center justify-between px-3 py-1.5 rounded-lg text-xs text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all"
-                      >
-                        <div className="truncate min-w-0">
-                          <span className="block truncate font-medium">{acc.name}</span>
-                          <span className="block text-[10px] text-sidebar-muted/60">
-                            {t(`accounts.type${typeKey}`)}
-                          </span>
-                        </div>
-                        <div className="text-right shrink-0 ml-2">
-                          <span className={`block tabular-nums font-medium text-xs ${balance < 0 ? 'text-rose-400' : 'text-sidebar-foreground'}`}>
-                            {mask(formatCurrency(balance, acc.currency))}
-                          </span>
-                          {pctChange !== null && (
-                            <span className={`block text-[10px] tabular-nums font-medium ${pctChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                              {mask(`${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(1)}%`)}
-                            </span>
-                          )}
-                        </div>
-                      </Link>
+                  {[...allAccounts]
+                    .sort(
+                      (a, b) =>
+                        Math.abs(Number(b.current_balance)) -
+                        Math.abs(Number(a.current_balance)),
                     )
-                  })}
+                    .slice(0, accountsShowAll ? allAccounts.length : 3)
+                    .map((acc) => {
+                      const balance = Number(acc.current_balance)
+                      const prevBalance = acc.previous_balance ?? 0
+                      const pctChange =
+                        prevBalance !== 0
+                          ? ((balance - prevBalance) / Math.abs(prevBalance)) *
+                            100
+                          : null
+                      const typeKey = acc.type
+                        .replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
+                        .replace(/^./, (c) => c.toUpperCase())
+
+                      return (
+                        <Link
+                          key={acc.id}
+                          to={`/accounts/${acc.id}`}
+                          onClick={() => setSidebarOpen(false)}
+                          className="flex items-center justify-between px-3 py-1.5 rounded-lg text-xs text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all"
+                        >
+                          <div className="truncate min-w-0">
+                            <span className="block truncate font-medium">
+                              {acc.name}
+                            </span>
+                            <span className="block text-[10px] text-sidebar-muted/60">
+                              {t(`accounts.type${typeKey}`)}
+                            </span>
+                          </div>
+                          <div className="text-right shrink-0 ml-2">
+                            <span
+                              className={`block tabular-nums font-medium text-xs ${balance < 0 ? 'text-rose-400' : 'text-sidebar-foreground'}`}
+                            >
+                              {mask(formatCurrency(balance, acc.currency))}
+                            </span>
+                            {pctChange !== null && (
+                              <span
+                                className={`block text-[10px] tabular-nums font-medium ${pctChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}
+                              >
+                                {mask(
+                                  `${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(1)}%`,
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        </Link>
+                      )
+                    })}
                   {allAccounts.length > 3 && (
                     <button
                       onClick={() => setAccountsShowAll(!accountsShowAll)}
@@ -351,7 +424,10 @@ export function AppLayout() {
                     >
                       {accountsShowAll
                         ? t('common.showLess', { defaultValue: 'Show less' })
-                        : t('common.showMore', { count: allAccounts.length - 3, defaultValue: `+${allAccounts.length - 3} more` })}
+                        : t('common.showMore', {
+                            count: allAccounts.length - 3,
+                            defaultValue: `+${allAccounts.length - 3} more`,
+                          })}
                     </button>
                   )}
                 </div>
@@ -361,8 +437,24 @@ export function AppLayout() {
 
           <div className="flex-1" />
 
+          <div className="px-3 pb-1">
+            <div
+              className="rounded-lg px-3 py-2 text-[11px] leading-4 text-sidebar-muted/70"
+              role="note"
+            >
+              <span className="sr-only">{versionA11yLabel}</span>
+              <span
+                aria-hidden="true"
+                className="block break-words text-left"
+                style={versionClampStyle}
+              >
+                {APP_VERSION}
+              </span>
+            </div>
+          </div>
+
           {/* User section */}
-          <div className="p-3">
+          <div className="p-3 pt-1">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 w-full rounded-lg px-3 py-2.5 text-sm hover:bg-sidebar-accent transition-colors text-left">
@@ -371,7 +463,9 @@ export function AppLayout() {
                       {userInitial}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="text-xs text-sidebar-muted truncate flex-1">{user?.email}</span>
+                  <span className="text-xs text-sidebar-muted truncate flex-1">
+                    {user?.email}
+                  </span>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48" side="top">
@@ -475,14 +569,38 @@ export function AppLayout() {
       </div>
 
       {showTour && <OnboardingTour onComplete={handleTourComplete} />}
-      <ChangePasswordDialog open={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
-      <TwoFactorSetup open={twoFactorOpen} onClose={() => setTwoFactorOpen(false)} />
+      <ChangePasswordDialog
+        open={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+      />
+      <TwoFactorSetup
+        open={twoFactorOpen}
+        onClose={() => setTwoFactorOpen(false)}
+      />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
   )
 }
 
-function UserMenu({ userInitial, logout, onChangePassword, onTwoFactor, onBackup, backingUp, dark, isAdmin }: { userInitial: string; logout: () => void; onChangePassword: () => void; onTwoFactor: () => void; onBackup: () => void; backingUp: boolean; dark?: boolean; isAdmin?: boolean }) {
+function UserMenu({
+  userInitial,
+  logout,
+  onChangePassword,
+  onTwoFactor,
+  onBackup,
+  backingUp,
+  dark,
+  isAdmin,
+}: {
+  userInitial: string
+  logout: () => void
+  onChangePassword: () => void
+  onTwoFactor: () => void
+  onBackup: () => void
+  backingUp: boolean
+  dark?: boolean
+  isAdmin?: boolean
+}) {
   const { t, i18n } = useTranslation()
   const nav = useNavigate()
   const currentLang = i18n.language
@@ -491,7 +609,13 @@ function UserMenu({ userInitial, logout, onChangePassword, onTwoFactor, onBackup
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0">
           <Avatar className="h-8 w-8">
-            <AvatarFallback className={dark ? 'bg-primary/20 text-primary text-xs font-semibold' : 'bg-primary/10 text-primary text-xs font-semibold'}>
+            <AvatarFallback
+              className={
+                dark
+                  ? 'bg-primary/20 text-primary text-xs font-semibold'
+                  : 'bg-primary/10 text-primary text-xs font-semibold'
+              }
+            >
               {userInitial}
             </AvatarFallback>
           </Avatar>
@@ -500,22 +624,35 @@ function UserMenu({ userInitial, logout, onChangePassword, onTwoFactor, onBackup
       <DropdownMenuContent align="end">
         {isAdmin && (
           <>
-            <DropdownMenuItem onClick={() => nav('/admin')} className="flex items-center gap-2">
+            <DropdownMenuItem
+              onClick={() => nav('/admin')}
+              className="flex items-center gap-2"
+            >
               <Shield size={14} />
               {t('nav.groupAdmin')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>
         )}
-        <DropdownMenuItem onClick={onChangePassword} className="flex items-center gap-2">
+        <DropdownMenuItem
+          onClick={onChangePassword}
+          className="flex items-center gap-2"
+        >
           <KeyRound size={14} />
           {t('auth.changePassword')}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={onTwoFactor} className="flex items-center gap-2">
+        <DropdownMenuItem
+          onClick={onTwoFactor}
+          className="flex items-center gap-2"
+        >
           <ShieldCheck size={14} />
           {t('auth.twoFactorTitle')}
         </DropdownMenuItem>
-        <DropdownMenuItem disabled={backingUp} onClick={onBackup} className="flex items-center gap-2">
+        <DropdownMenuItem
+          disabled={backingUp}
+          onClick={onBackup}
+          className="flex items-center gap-2"
+        >
           <HardDriveDownload size={14} />
           {backingUp ? t('backup.downloading') : t('backup.button')}
         </DropdownMenuItem>
@@ -554,7 +691,10 @@ function UserMenu({ userInitial, logout, onChangePassword, onTwoFactor, onBackup
           </DropdownMenuPortal>
         </DropdownMenuSub>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={logout} className="text-rose-600 focus:text-rose-600">
+        <DropdownMenuItem
+          onClick={logout}
+          className="text-rose-600 focus:text-rose-600"
+        >
           {t('auth.logout')}
         </DropdownMenuItem>
       </DropdownMenuContent>
