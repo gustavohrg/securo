@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process'
+import { execSync, execFileSync } from 'node:child_process'
 const officialReleaseRepo = 'https://github.com/securo-finance/securo.git'
 const officialLatestReleaseApi =
   'https://api.github.com/repos/securo-finance/securo/releases/latest'
@@ -13,7 +13,8 @@ type ParsedSemverTag = {
 }
 
 function runLocalGit(projectRoot: string, command: string) {
-  return execSync(`git -c safe.directory=${projectRoot} ${command}`, {
+  const args = ['-c', `safe.directory=${projectRoot}`, ...command.split(' ')]
+  return execFileSync('git', args, {
     cwd: projectRoot,
     stdio: ['ignore', 'pipe', 'ignore'],
   })
