@@ -92,13 +92,6 @@ function formatCurrency(value: number, currency = 'USD', locale = 'en-US') {
   )
 }
 
-const versionClampStyle = {
-  display: '-webkit-box',
-  WebkitBoxOrient: 'vertical' as const,
-  WebkitLineClamp: 2,
-  overflow: 'hidden',
-}
-
 export function AppLayout() {
   const { t, i18n } = useTranslation()
   const { user, logout, updateUser } = useAuth()
@@ -445,8 +438,7 @@ export function AppLayout() {
               <span className="sr-only">{versionA11yLabel}</span>
               <span
                 aria-hidden="true"
-                className="block break-words text-left"
-                style={versionClampStyle}
+                className="block break-all line-clamp-2 text-left"
               >
                 {APP_VERSION}
               </span>
