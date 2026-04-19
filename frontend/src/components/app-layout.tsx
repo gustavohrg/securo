@@ -287,7 +287,7 @@ export function AppLayout() {
             >
               <Search size={13} className="shrink-0" />
               <span className="flex-1 text-left">{t('cmdk.triggerLabel')}</span>
-              <kbd className="hidden lg:inline-flex h-4.25 items-center rounded border border-sidebar-border bg-sidebar px-1 font-mono text-[9.5px] font-semibold text-sidebar-muted/80">
+              <kbd className="hidden lg:inline-flex h-[17px] items-center rounded border border-sidebar-border bg-sidebar px-1 font-mono text-[9.5px] font-semibold text-sidebar-muted/80">
                 {isMac ? '⌘' : 'Ctrl'}&nbsp;K
               </kbd>
             </button>
@@ -320,7 +320,7 @@ export function AppLayout() {
                   className={cn(
                     'flex items-center gap-3 text-[13px] font-medium transition-all rounded-lg px-3 py-2',
                     isActive
-                      ? 'bg-primary/8 text-primary border-l-[3px] border-primary pl-2.25'
+                      ? 'bg-primary/[0.08] text-primary border-l-[3px] border-primary pl-[9px]'
                       : 'text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground',
                   )}
                 >
@@ -445,7 +445,7 @@ export function AppLayout() {
               <span className="sr-only">{versionA11yLabel}</span>
               <span
                 aria-hidden="true"
-                className="block wrap-break-word text-left"
+                className="block break-words text-left"
                 style={versionClampStyle}
               >
                 {APP_VERSION}
