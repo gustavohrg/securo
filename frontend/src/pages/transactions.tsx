@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { getAccountName } from '@/lib/account-utils'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -19,7 +20,7 @@ import { AlertTriangle, ArrowLeftRight, Check, Download, HelpCircle, Info, Paper
 import type { Transaction } from '@/types'
 import { PageHeader } from '@/components/page-header'
 import { CategoryIcon } from '@/components/category-icon'
-import { TransactionDialog, extractApiError } from '@/components/transaction-dialog'
+import { TransactionDialog, extractApiError, type SaveAction } from '@/components/transaction-dialog'
 import { TransferDialog } from '@/components/transfer-dialog'
 import { LinkTransferDialog } from '@/components/link-transfer-dialog'
 import { TransactionsFilterBar } from '@/components/transactions-filter-bar'
@@ -57,13 +58,30 @@ export default function TransactionsPage() {
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') ?? '')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
+  const [formResetKey, setFormResetKey] = useState(0)
+  const [duplicateDraft, setDuplicateDraft] = useState<Partial<Transaction> | null>(null)
   const [filterPayee, setFilterPayee] = useState<string>(searchParams.get('payee_id') ?? '')
-  const [tagFilter, setTagFilter] = useState<string | null>(null)
+  const [tagFilters, setTagFilters] = useState<string[]>([])
+
+  const addTagFilter = (tag: string) => {
+    const normalized = tag.startsWith('#') ? tag : `#${tag}`
+    setTagFilters(prev => (prev.includes(normalized) ? prev : [...prev, normalized]))
+    setPage(1)
+  }
+  const removeTagFilter = (tag: string) => {
+    setTagFilters(prev => prev.filter(t => t !== tag))
+    setPage(1)
+  }
+  const clearTagFilters = () => {
+    setTagFilters([])
+    setPage(1)
+  }
   const [exporting, setExporting] = useState(false)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [linkTransferDialogOpen, setLinkTransferDialogOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkCategory, setBulkCategory] = useState<string>('')
+  const [bulkTagInput, setBulkTagInput] = useState<string>('')
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
   const highlightId = searchParams.get('highlight')
   const highlightedRowRef = useRef<HTMLTableRowElement | null>(null)
@@ -119,7 +137,7 @@ export default function TransactionsPage() {
   }, [highlightId, searchQuery, filterPayee, filterCategoryIds, page])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['transactions', page, filterAccountIds, filterCategoryIds, filterUncategorized, filterPayee, filterFrom, filterTo, searchQuery],
+    queryKey: ['transactions', page, filterAccountIds, filterCategoryIds, filterUncategorized, filterPayee, filterFrom, filterTo, searchQuery, tagFilters],
     queryFn: () =>
       transactions.list({
         page,
@@ -131,6 +149,7 @@ export default function TransactionsPage() {
         from: filterFrom || undefined,
         to: filterTo || undefined,
         q: searchQuery || undefined,
+        tags: tagFilters.length > 0 ? tagFilters : undefined,
       }),
   })
 
@@ -164,7 +183,7 @@ export default function TransactionsPage() {
   const invalidateAfterTxMutation = () => invalidateFinancialQueries(queryClient)
 
   const createMutation = useMutation({
-    mutationFn: async (payload: { tx: Partial<Transaction>; recurringData?: { frequency: string; end_date?: string }; pendingFiles?: File[] }) => {
+    mutationFn: async (payload: { tx: Partial<Transaction>; recurringData?: { frequency: string; end_date?: string }; pendingFiles?: File[]; action?: SaveAction }) => {
       const created = await transactions.create(payload.tx)
       if (payload.recurringData) {
         await recurring.create({
@@ -187,11 +206,19 @@ export default function TransactionsPage() {
       }
       return created
     },
-    onSuccess: () => {
+    onSuccess: (_created, variables) => {
       invalidateAfterTxMutation()
       queryClient.invalidateQueries({ queryKey: ['recurring'] })
-      setDialogOpen(false)
       toast.success(t('transactions.created'))
+      if (variables.action === 'saveAndNew') {
+        setDuplicateDraft(null)
+        setFormResetKey(k => k + 1)
+      } else if (variables.action === 'saveAndDuplicate') {
+        setDuplicateDraft(variables.tx)
+        setFormResetKey(k => k + 1)
+      } else {
+        setDialogOpen(false)
+      }
     },
     onError: (error) => {
       toast.error(extractApiError(error))
@@ -232,6 +259,20 @@ export default function TransactionsPage() {
       invalidateAfterTxMutation()
       setSelectedIds(new Set())
       setBulkCategory('')
+      toast.success(t('transactions.bulkSuccess', { count: result.updated }))
+    },
+    onError: (error) => {
+      toast.error(extractApiError(error))
+    },
+  })
+
+  const bulkAddTagsMutation = useMutation({
+    mutationFn: ({ ids, tags }: { ids: string[]; tags: string[] }) =>
+      transactions.bulkAddTags(ids, tags),
+    onSuccess: (result) => {
+      invalidateAfterTxMutation()
+      setSelectedIds(new Set())
+      setBulkTagInput('')
       toast.success(t('transactions.bulkSuccess', { count: result.updated }))
     },
     onError: (error) => {
@@ -295,12 +336,9 @@ export default function TransactionsPage() {
     })
   }
 
-  const filteredItems = useMemo(() => {
-    if (!tagFilter || !data?.items) return data?.items ?? []
-    return data.items.filter(tx =>
-      tx.notes?.includes(tagFilter)
-    )
-  }, [data?.items, tagFilter])
+  // Tag filtering is now applied server-side, so the visible list and the
+  // page count both reflect the same filtered total — issue #88.
+  const filteredItems = data?.items ?? []
 
   const toggleSelectAll = () => {
     if (!filteredItems.length) return
@@ -395,6 +433,19 @@ export default function TransactionsPage() {
       <TransactionsFilterBar
         searchInput={searchInput}
         onSearchChange={(v) => setSearchInput(v)}
+        onSearchSubmit={(value) => {
+          const trimmed = value.trim()
+          // Tokenize submitted text. `#`-tokens become live tag filter
+          // chips below the search bar (filtering applies immediately, no
+          // Enter required). Non-`#` text remains as the free-text search
+          // query (issue #88).
+          const tokens = trimmed.split(/\s+/).filter(Boolean)
+          const tags = tokens.filter(t => t.startsWith('#'))
+          const text = tokens.filter(t => !t.startsWith('#')).join(' ')
+          tags.forEach(addTagFilter)
+          setSearchInput(text)
+          setSearchQuery(text)
+        }}
         filterAccountIds={filterAccountIds}
         onAccountIdsChange={(v) => { setFilterAccountIds(v); setPage(1) }}
         filterCategoryIds={filterCategoryIds}
@@ -415,21 +466,30 @@ export default function TransactionsPage() {
           setFilterPayee('')
           setSearchInput('')
           setSearchQuery('')
+          clearTagFilters()
           setPage(1)
         }}
         accounts={accountsList ?? []}
         categories={categoriesList ?? []}
         payees={payeesList ?? []}
       />
-      {tagFilter && (
-        <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
-          <span>{tagFilter}</span>
-          <button
-            onClick={() => setTagFilter(null)}
-            className="ml-0.5 text-primary/60 hover:text-primary"
-          >
-            <X size={12} />
-          </button>
+      {tagFilters.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+          {tagFilters.map(tag => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1.5 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-medium text-primary"
+            >
+              <span>{tag}</span>
+              <button
+                onClick={() => removeTagFilter(tag)}
+                className="ml-0.5 text-primary/60 hover:text-primary"
+                aria-label={`Remove ${tag} filter`}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          ))}
         </div>
       )}
       {isAccrual && (filterFrom || filterTo) && (
@@ -529,7 +589,7 @@ export default function TransactionsPage() {
                                   <span
                                     key={tag}
                                     className="inline-block text-[11px] font-medium bg-primary/5 text-primary border border-primary/10 px-1.5 py-0 rounded-full leading-5 cursor-pointer hover:bg-primary/10 transition-colors"
-                                    onClick={(e) => { e.stopPropagation(); setTagFilter(tag) }}
+                                    onClick={(e) => { e.stopPropagation(); addTagFilter(tag) }}
                                   >
                                     {tag}
                                   </span>
@@ -549,7 +609,7 @@ export default function TransactionsPage() {
                     )}
                   </TableCell>
                   <TableCell className="hidden lg:table-cell py-2.5 text-sm text-muted-foreground">
-                    {accountsList?.find((a) => a.id === tx.account_id)?.name ?? (
+                    {getAccountName(accountsList?.find((a) => a.id === tx.account_id) ?? { name: '', display_name: null }) || (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
@@ -611,49 +671,93 @@ export default function TransactionsPage() {
       <div
         className={`fixed bottom-0 left-0 right-0 z-50 transition-transform duration-200 ease-out ${selectedIds.size > 0 ? 'translate-y-0' : 'translate-y-full'}`}
       >
-        <div className="mx-auto max-w-2xl px-3 md:px-4 pb-4 md:pb-6">
-          <div className="flex flex-wrap items-center gap-2 md:gap-3 bg-card border border-border shadow-lg rounded-xl px-3 md:px-5 py-2.5 md:py-3">
-            <span className="text-xs md:text-sm font-medium text-foreground whitespace-nowrap">
-              {t('transactions.selected', { count: selectedIds.size })}
-            </span>
+        <div className="mx-auto max-w-5xl px-3 md:px-4 pb-4 md:pb-6">
+          <div className="flex items-stretch gap-1.5 bg-card border border-border shadow-xl rounded-2xl p-2">
+            {/* Selection count */}
+            <div className="flex items-center gap-2 pl-3 pr-4 text-sm font-medium text-foreground whitespace-nowrap">
+              <span className="inline-flex items-center justify-center size-6 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                {selectedIds.size}
+              </span>
+              <span className="hidden sm:inline">{t('transactions.selected')}</span>
+            </div>
+
+            <div className="w-px bg-border/60 self-stretch" />
+
+            {/* Categorize — fires on selection, no separate Apply button */}
             <select
-              className="border border-border rounded-lg px-2 md:px-3 py-1.5 text-xs md:text-sm bg-card text-foreground focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px] flex-1 min-w-0"
+              className="rounded-lg px-3 py-2 text-sm bg-transparent text-foreground hover:bg-muted/60 focus:outline-none focus-visible:bg-muted/60 cursor-pointer w-44 md:w-56"
               value={bulkCategory}
-              onChange={(e) => setBulkCategory(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value
+                setBulkCategory(next)
+                if (next) {
+                  bulkCategorizeMutation.mutate({ ids: Array.from(selectedIds), categoryId: next })
+                }
+              }}
+              disabled={bulkCategorizeMutation.isPending}
             >
               <option value="">{t('transactions.selectCategory')}</option>
               {categoriesList?.map((cat) => (
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
             </select>
+
+            <div className="w-px bg-border/60 self-stretch" />
+
+            {/* Add tags inline */}
+            <div className="flex items-center gap-1 px-1">
+              <input
+                type="text"
+                value={bulkTagInput}
+                onChange={(e) => setBulkTagInput(e.target.value)}
+                placeholder={t('transactions.addTagsPlaceholder', '#tag…')}
+                className="rounded-lg px-2.5 py-2 text-sm bg-transparent text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:bg-muted/60 w-28 md:w-40"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && bulkTagInput.trim()) {
+                    e.preventDefault()
+                    const tagList = bulkTagInput.trim().split(/[\s,]+/).filter(Boolean)
+                    bulkAddTagsMutation.mutate({ ids: Array.from(selectedIds), tags: tagList })
+                  }
+                }}
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={!bulkTagInput.trim() || bulkAddTagsMutation.isPending}
+                onClick={() => {
+                  const tagList = bulkTagInput.trim().split(/[\s,]+/).filter(Boolean)
+                  if (tagList.length === 0) return
+                  bulkAddTagsMutation.mutate({ ids: Array.from(selectedIds), tags: tagList })
+                }}
+                className="h-8 w-8 px-0 shrink-0"
+                title={t('transactions.bulkAddTags', 'Add tags')}
+              >
+                <Check size={15} />
+              </Button>
+            </div>
+
+            <div className="w-px bg-border/60 self-stretch" />
+
+            {/* Link transfer */}
             <Button
               size="sm"
-              disabled={!bulkCategory || bulkCategorizeMutation.isPending}
-              onClick={() => {
-                bulkCategorizeMutation.mutate({
-                  ids: Array.from(selectedIds),
-                  categoryId: bulkCategory || null,
-                })
-              }}
-              className="shrink-0"
-            >
-              <Check size={14} className="mr-1" />
-              {t('transactions.bulkCategorize')}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
+              variant="ghost"
               disabled={!canOpenLinkDialog}
-              title={linkDisabledTooltip}
+              title={linkDisabledTooltip ?? t('transactions.linkAsTransfer')}
               onClick={() => setLinkTransferDialogOpen(true)}
-              className="shrink-0"
+              className="h-8 px-3 shrink-0 text-sm"
             >
-              <ArrowLeftRight size={14} className="mr-1" />
-              {t('transactions.linkAsTransfer')}
+              <ArrowLeftRight size={15} className="mr-1.5" />
+              <span className="hidden lg:inline">{t('transactions.linkAsTransfer')}</span>
             </Button>
+
+            <div className="ml-auto" />
+
+            {/* Close */}
             <button
-              onClick={() => { setSelectedIds(new Set()); setBulkCategory('') }}
-              className="text-muted-foreground hover:text-foreground p-1 shrink-0"
+              onClick={() => { setSelectedIds(new Set()); setBulkCategory(''); setBulkTagInput('') }}
+              className="text-muted-foreground hover:text-foreground p-2 shrink-0 self-center rounded-lg hover:bg-muted/60"
+              title={t('common.close', 'Close')}
             >
               <X size={16} />
             </button>
@@ -687,16 +791,18 @@ export default function TransactionsPage() {
       {/* Add/Edit Dialog */}
       <TransactionDialog
         open={dialogOpen}
-        onClose={() => { setDialogOpen(false); setEditingTx(null) }}
+        onClose={() => { setDialogOpen(false); setEditingTx(null); setDuplicateDraft(null) }}
         transaction={editingTx}
+        duplicateDraft={duplicateDraft}
+        formResetKey={formResetKey}
         categories={categoriesList ?? []}
         accounts={accountsList ?? []}
         recurringMatch={editingTx ? recurringList?.find(r => r.description === editingTx.description && r.type === editingTx.type) : undefined}
-        onSave={(data, recurringData, pendingFiles) => {
+        onSave={(data, recurringData, pendingFiles, action) => {
           if (editingTx) {
             updateMutation.mutate({ id: editingTx.id, ...data })
           } else {
-            createMutation.mutate({ tx: data, recurringData, pendingFiles })
+            createMutation.mutate({ tx: data, recurringData, pendingFiles, action })
           }
         }}
         onDelete={editingTx ? () => deleteMutation.mutate(editingTx.id) : undefined}

@@ -10,7 +10,12 @@ from app.models.account import Account
 from app.models.bank_connection import BankConnection
 from app.models.transaction import Transaction
 from app.schemas.account import AccountCreate, AccountUpdate
+from app.services._query_filters import counts_as_pnl
 from app.services.credit_card_service import apply_effective_date, compute_available_credit, get_cycle_dates
+
+
+def get_account_name(account: Account) -> str:
+    return account.display_name or account.name
 
 
 async def get_accounts(session: AsyncSession, user_id: uuid.UUID, include_closed: bool = False) -> list[dict]:
@@ -98,6 +103,7 @@ def serialize_account(
         "connection_id": acc.connection_id,
         "external_id": acc.external_id,
         "name": acc.name,
+        "display_name": acc.display_name,
         "type": acc.type,
         "balance": acc.balance,
         "currency": acc.currency,
@@ -203,6 +209,7 @@ async def update_account(
     # expose those — users fill them in to unlock cycle-aware filtering.
     if account.connection_id is not None:
         editable_fields = {
+            "display_name",
             "credit_limit",
             "statement_close_day",
             "payment_due_day",
@@ -213,7 +220,9 @@ async def update_account(
         disallowed = set(update_data.keys()) - editable_fields
         if disallowed:
             raise ValueError("Cannot edit bank-connected accounts")
-        if account.type != "credit_card":
+        cc_fields = editable_fields - {"display_name"}
+        cc_update = {k: v for k, v in update_data.items() if k in cc_fields}
+        if cc_update and account.type != "credit_card":
             raise ValueError("Credit card fields can only be set on credit card accounts")
         for key, value in update_data.items():
             setattr(account, key, value)
@@ -419,9 +428,12 @@ async def close_account(
     account.is_closed = True
     account.closed_at = datetime.now(timezone.utc)
 
-    # Unlink from bank connection so sync skips it
-    if account.connection_id is not None:
-        account.connection_id = None
+    # Keep `connection_id` intact for connected accounts so the sync loop in
+    # connection_service can find the account by (connection_id, external_id)
+    # and honor the `is_closed` skip. Unlinking caused the next sync to treat
+    # the provider account as new and create a duplicate active row, while
+    # leaving the original entry stranded in "Closed Accounts" with no link
+    # back to its connection (issue #90).
 
     await session.commit()
     await session.refresh(account)
@@ -490,25 +502,26 @@ async def get_account_summary(
     if account.type == "credit_card" and account.connection_id:
         current_balance = -current_balance
 
-    # Income = SUM of credit transactions in [date_from, date_to] (excluding opening_balance and transfers)
+    # Income = SUM of credit transactions in [date_from, date_to] (excluding
+    # opening_balance, paired transfers, and transfer-like categories).
     income_result = await session.execute(
         select(func.coalesce(func.sum(effective_amount), 0)).where(
             Transaction.account_id == account_id,
             Transaction.type == "credit",
             Transaction.source != "opening_balance",
-            Transaction.transfer_pair_id.is_(None),
+            counts_as_pnl(),
             Transaction.date >= date_from,
             Transaction.date <= date_to,
         )
     )
     monthly_income = float(income_result.scalar())
 
-    # Expenses = SUM of debit transactions in [date_from, date_to] (as positive value, excluding transfers)
+    # Expenses = SUM of debit transactions in [date_from, date_to] (same exclusions)
     expenses_result = await session.execute(
         select(func.coalesce(func.sum(func.abs(effective_amount)), 0)).where(
             Transaction.account_id == account_id,
             Transaction.type == "debit",
-            Transaction.transfer_pair_id.is_(None),
+            counts_as_pnl(),
             Transaction.date >= date_from,
             Transaction.date <= date_to,
         )

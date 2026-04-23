@@ -44,6 +44,7 @@ export interface Category {
   icon: string
   color: string
   is_system: boolean
+  treat_as_transfer: boolean
 }
 
 export interface CategoryGroup {
@@ -80,6 +81,7 @@ export interface Account {
   connection_id: string | null
   external_id: string | null
   name: string
+  display_name: string | null
   type: string
   balance: number
   current_balance: number
@@ -313,6 +315,47 @@ export interface Asset {
   gain_loss: number | null
   gain_loss_primary: number | null
   value_count: number
+  source: string
+  connection_id: string | null
+  isin: string | null
+  maturity_date: string | null
+  group_id: string | null
+  ticker: string | null
+  ticker_exchange: string | null
+  last_price: number | null
+  last_price_at: string | null
+  logo_url: string | null
+}
+
+export interface MarketSymbolMatch {
+  symbol: string
+  name: string | null
+  exchange: string | null
+  quote_type: string | null
+}
+
+export interface MarketSymbolQuote {
+  symbol: string
+  name: string | null
+  exchange: string | null
+  currency: string
+  price: number
+  quote_type: string | null
+}
+
+export interface AssetGroup {
+  id: string
+  user_id: string
+  name: string
+  icon: string
+  color: string
+  position: number
+  source: string
+  connection_id: string | null
+  institution_name: string | null
+  asset_count: number
+  current_value: number
+  current_value_primary: number
 }
 
 export interface AssetValue {

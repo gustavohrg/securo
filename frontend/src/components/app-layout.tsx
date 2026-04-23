@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { getAccountName } from '@/lib/account-utils'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -357,59 +358,40 @@ export function AppLayout() {
               </button>
               {accountsExpanded && (
                 <div className="mt-1 space-y-0.5">
-                  {[...allAccounts]
-                    .sort(
-                      (a, b) =>
-                        Math.abs(Number(b.current_balance)) -
-                        Math.abs(Number(a.current_balance)),
-                    )
-                    .slice(0, accountsShowAll ? allAccounts.length : 3)
-                    .map((acc) => {
-                      const balance = Number(acc.current_balance)
-                      const prevBalance = acc.previous_balance ?? 0
-                      const pctChange =
-                        prevBalance !== 0
-                          ? ((balance - prevBalance) / Math.abs(prevBalance)) *
-                            100
-                          : null
-                      const typeKey = acc.type
-                        .replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
-                        .replace(/^./, (c) => c.toUpperCase())
+                  {[...allAccounts].sort((a, b) => Math.abs(Number(b.current_balance)) - Math.abs(Number(a.current_balance))).slice(0, accountsShowAll ? allAccounts.length : 3).map((acc) => {
+                    const balance = Number(acc.current_balance)
+                    const prevBalance = acc.previous_balance ?? 0
+                    const pctChange = prevBalance !== 0
+                      ? ((balance - prevBalance) / Math.abs(prevBalance)) * 100
+                      : null
+                    const typeKey = acc.type.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase()).replace(/^./, c => c.toUpperCase())
 
-                      return (
-                        <Link
-                          key={acc.id}
-                          to={`/accounts/${acc.id}`}
-                          onClick={() => setSidebarOpen(false)}
-                          className="flex items-center justify-between px-3 py-1.5 rounded-lg text-xs text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all"
-                        >
-                          <div className="truncate min-w-0">
-                            <span className="block truncate font-medium">
-                              {acc.name}
+                    return (
+                      <Link
+                        key={acc.id}
+                        to={`/accounts/${acc.id}`}
+                        onClick={() => setSidebarOpen(false)}
+                        className="flex items-center justify-between px-3 py-1.5 rounded-lg text-xs text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all"
+                      >
+                        <div className="truncate min-w-0">
+                          <span className="block truncate font-medium">{getAccountName(acc)}</span>
+                          <span className="block text-[10px] text-sidebar-muted/60">
+                            {t(`accounts.type${typeKey}`)}
+                          </span>
+                        </div>
+                        <div className="text-right shrink-0 ml-2">
+                          <span className={`block tabular-nums font-medium text-xs ${balance < 0 ? 'text-rose-400' : 'text-sidebar-foreground'}`}>
+                            {mask(formatCurrency(balance, acc.currency))}
+                          </span>
+                          {pctChange !== null && (
+                            <span className={`block text-[10px] tabular-nums font-medium ${pctChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {mask(`${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(1)}%`)}
                             </span>
-                            <span className="block text-[10px] text-sidebar-muted/60">
-                              {t(`accounts.type${typeKey}`)}
-                            </span>
-                          </div>
-                          <div className="text-right shrink-0 ml-2">
-                            <span
-                              className={`block tabular-nums font-medium text-xs ${balance < 0 ? 'text-rose-400' : 'text-sidebar-foreground'}`}
-                            >
-                              {mask(formatCurrency(balance, acc.currency))}
-                            </span>
-                            {pctChange !== null && (
-                              <span
-                                className={`block text-[10px] tabular-nums font-medium ${pctChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}
-                              >
-                                {mask(
-                                  `${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(1)}%`,
-                                )}
-                              </span>
-                            )}
-                          </div>
-                        </Link>
-                      )
-                    })}
+                          )}
+                        </div>
+                      </Link>
+                    )
+                  })}
                   {allAccounts.length > 3 && (
                     <button
                       onClick={() => setAccountsShowAll(!accountsShowAll)}
