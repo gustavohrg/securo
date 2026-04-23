@@ -26,6 +26,8 @@ import {
 import { cn } from '@/lib/utils'
 import { APP_VERSION } from '@/lib/build-info'
 import { ShellLogo } from '@/components/shell-logo'
+import { UpdateAvailableBanner } from '@/components/update-available-banner'
+import { UpdateAvailableDialog } from '@/components/update-available-dialog'
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -52,6 +54,7 @@ import {
   HardDriveDownload,
   Shield,
   ShieldCheck,
+  Download,
 } from 'lucide-react'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
 import { ChangePasswordDialog } from '@/components/change-password-dialog'
@@ -109,6 +112,7 @@ export function AppLayout() {
   const [twoFactorOpen, setTwoFactorOpen] = useState(false)
   const [backingUp, setBackingUp] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
   useCommandPaletteHotkey(setPaletteOpen)
   const isMac =
     typeof navigator !== 'undefined' &&
@@ -231,7 +235,7 @@ export function AppLayout() {
         {/* Sidebar */}
         <aside
           className={cn(
-            'fixed inset-y-0 left-0 z-50 w-60 bg-sidebar border-r border-sidebar-border flex flex-col transform transition-transform lg:translate-x-0 shrink-0 overflow-y-auto',
+            'fixed inset-y-0 left-0 z-50 w-60 bg-sidebar border-r border-sidebar-border flex flex-col transform transition-transform lg:translate-x-0 shrink-0',
             sidebarOpen ? 'translate-x-0' : '-translate-x-full',
           )}
         >
@@ -287,6 +291,7 @@ export function AppLayout() {
             </button>
           </div>
 
+          <div className="flex-1 min-h-0 overflow-y-auto">
           {/* Nav */}
           <nav className="flex flex-col gap-0.5 p-3" data-tour="sidebar">
             {navItems.map((item, idx) => {
@@ -409,26 +414,12 @@ export function AppLayout() {
               )}
             </div>
           )}
-
-          <div className="flex-1" />
-
-          <div className="px-3 pb-1">
-            <div
-              className="rounded-lg px-3 py-2 text-[11px] leading-4 text-sidebar-muted/70"
-              role="note"
-            >
-              <span className="sr-only">{versionA11yLabel}</span>
-              <span
-                aria-hidden="true"
-                className="block break-all line-clamp-2 text-left"
-              >
-                {APP_VERSION}
-              </span>
-            </div>
           </div>
 
+          <UpdateAvailableBanner onOpen={() => setUpdateDialogOpen(true)} />
+
           {/* User section */}
-          <div className="p-3 pt-1">
+          <div className="px-3 pt-1">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 w-full rounded-lg px-3 py-2.5 text-sm hover:bg-sidebar-accent transition-colors text-left">
@@ -487,6 +478,13 @@ export function AppLayout() {
                   <HardDriveDownload size={14} />
                   {backingUp ? t('backup.downloading') : t('backup.button')}
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setUpdateDialogOpen(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Download size={14} />
+                  {t('update.menuItem')}
+                </DropdownMenuItem>
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger className="flex items-center gap-2">
                     <Languages size={14} />
@@ -532,6 +530,18 @@ export function AppLayout() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+
+          <div className="px-3 pb-3 pt-1">
+            <div
+              className="text-[11px] leading-4 text-sidebar-muted/70 text-center"
+              role="note"
+            >
+              <span className="sr-only">{versionA11yLabel}</span>
+              <span aria-hidden="true" className="block break-all line-clamp-2">
+                {t('app.versionLabel', { version: APP_VERSION })}
+              </span>
+            </div>
+          </div>
         </aside>
 
         {/* Main content */}
@@ -552,6 +562,10 @@ export function AppLayout() {
         onClose={() => setTwoFactorOpen(false)}
       />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <UpdateAvailableDialog
+        open={updateDialogOpen}
+        onClose={() => setUpdateDialogOpen(false)}
+      />
     </div>
   )
 }
