@@ -221,6 +221,9 @@ async def _upsert_asset_from_holding(
     # external_metadata is a snapshot blob: we want the latest every time.
     asset.external_metadata = holding.metadata
     asset.connection_id = connection_id
+    # If an asset was archived because it disappeared (or after a
+    # disconnect), seeing it again in current holdings means it's active.
+    asset.is_archived = False
 
     # Sparse fields — merge, don't clobber. Pluggy sometimes returns
     # these on first sync and null on later ones (e.g. amountOriginal
