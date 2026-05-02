@@ -285,6 +285,33 @@ async def test_delete_connection_not_found(session: AsyncSession, test_user):
     assert result is False
 
 
+@pytest.mark.asyncio
+async def test_delete_connection_archives_linked_assets(session: AsyncSession, test_user):
+    """Deleting a connection archives linked assets before removing the connection."""
+    from app.models.asset import Asset
+
+    conn = await _make_connection(session, test_user.id, "Asset Bank")
+    asset = Asset(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        name="Synced ETF",
+        type="etf",
+        currency="BRL",
+        source="pluggy",
+        external_id="asset-ext-1",
+        connection_id=conn.id,
+        is_archived=False,
+    )
+    session.add(asset)
+    await session.commit()
+
+    result = await delete_connection(session, conn.id, test_user.id)
+    assert result is True
+
+    refreshed = (await session.execute(select(Asset).where(Asset.id == asset.id))).scalar_one()
+    assert refreshed.is_archived is True
+
+
 # ---------------------------------------------------------------------------
 # create_connect_token
 # ---------------------------------------------------------------------------

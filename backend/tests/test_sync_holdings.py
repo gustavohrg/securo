@@ -454,6 +454,33 @@ async def test_disappeared_holding_gets_archived(
 
 
 @pytest.mark.asyncio
+async def test_returned_holding_is_unarchived(
+    session: AsyncSession, test_user: User, mock_connection: BankConnection
+):
+    """A holding archived on a prior sync should become active again when it
+    reappears in provider data (common after reconnecting the same account)."""
+    _MockProvider._holdings = [_holding(external_id="h-1", current_value=Decimal("500"))]
+    await _sync_holdings(session, test_user.id, mock_connection, mock_connection.credentials)
+    await session.commit()
+
+    # Next sync does not include h-1 -> archived.
+    _MockProvider._holdings = []
+    await _sync_holdings(session, test_user.id, mock_connection, mock_connection.credentials)
+    await session.commit()
+
+    assets = {a.external_id: a for a in await _assets_for(session, test_user)}
+    assert assets["h-1"].is_archived is True
+
+    # Later sync includes h-1 again -> should unarchive.
+    _MockProvider._holdings = [_holding(external_id="h-1", current_value=Decimal("525"))]
+    await _sync_holdings(session, test_user.id, mock_connection, mock_connection.credentials)
+    await session.commit()
+
+    assets = {a.external_id: a for a in await _assets_for(session, test_user)}
+    assert assets["h-1"].is_archived is False
+
+
+@pytest.mark.asyncio
 async def test_user_moved_asset_to_custom_wallet_not_overridden(
     session: AsyncSession, test_user: User, mock_connection: BankConnection
 ):
