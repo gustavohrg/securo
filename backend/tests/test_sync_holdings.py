@@ -454,11 +454,10 @@ async def test_disappeared_holding_gets_archived(
 
 
 @pytest.mark.asyncio
-async def test_returned_holding_is_unarchived(
+async def test_returned_holding_is_unarchived_after_reconnect(
     session: AsyncSession, test_user: User, mock_connection: BankConnection
 ):
-    """A holding archived on a prior sync should become active again when it
-    reappears in provider data (common after reconnecting the same account)."""
+    """A holding archived on unlink should become active again when reconnected."""
     _MockProvider._holdings = [_holding(external_id="h-1", current_value=Decimal("500"))]
     await _sync_holdings(session, test_user.id, mock_connection, mock_connection.credentials)
     await session.commit()
@@ -471,13 +470,51 @@ async def test_returned_holding_is_unarchived(
     assets = {a.external_id: a for a in await _assets_for(session, test_user)}
     assert assets["h-1"].is_archived is True
 
+    # Simulate unlink/reconnect: old connection disappears and a new one syncs.
+    await session.delete(mock_connection)
+    await session.commit()
+
+    reconnected = BankConnection(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        provider="mock",
+        external_id="item-reconnected",
+        institution_name="Mock Bank",
+        credentials={"item_id": "item-reconnected"},
+        status="active",
+        created_at=datetime.now(timezone.utc),
+    )
+    session.add(reconnected)
+    await session.commit()
+
     # Later sync includes h-1 again -> should unarchive.
     _MockProvider._holdings = [_holding(external_id="h-1", current_value=Decimal("525"))]
-    await _sync_holdings(session, test_user.id, mock_connection, mock_connection.credentials)
+    await _sync_holdings(session, test_user.id, reconnected, reconnected.credentials)
     await session.commit()
 
     assets = {a.external_id: a for a in await _assets_for(session, test_user)}
     assert assets["h-1"].is_archived is False
+
+
+@pytest.mark.asyncio
+async def test_user_archived_holding_stays_archived_on_same_connection_sync(
+    session: AsyncSession, test_user: User, mock_connection: BankConnection
+):
+    """Sync must not override a user archive decision on the same connection."""
+    _MockProvider._holdings = [_holding(external_id="h-1", current_value=Decimal("500"))]
+    await _sync_holdings(session, test_user.id, mock_connection, mock_connection.credentials)
+    await session.commit()
+
+    assets = {a.external_id: a for a in await _assets_for(session, test_user)}
+    assets["h-1"].is_archived = True
+    await session.commit()
+
+    _MockProvider._holdings = [_holding(external_id="h-1", current_value=Decimal("510"))]
+    await _sync_holdings(session, test_user.id, mock_connection, mock_connection.credentials)
+    await session.commit()
+
+    assets = {a.external_id: a for a in await _assets_for(session, test_user)}
+    assert assets["h-1"].is_archived is True
 
 
 @pytest.mark.asyncio

@@ -154,7 +154,7 @@ async def test_get_payees_ordered_by_name(session: AsyncSession, test_user):
 
 
 @pytest.mark.asyncio
-async def test_get_payees_excludes_zero_transaction_payees(session: AsyncSession, test_user):
+async def test_get_payees_includes_zero_transaction_payees(session: AsyncSession, test_user):
     orphan = await create_payee(session, test_user.id, PayeeCreate(name="No Tx"))
     active = await create_payee(session, test_user.id, PayeeCreate(name="Has Tx"))
     account = await _make_account(session, test_user)
@@ -171,7 +171,11 @@ async def test_get_payees_excludes_zero_transaction_payees(session: AsyncSession
     ids = {p.id for p in payees}
 
     assert active.id in ids
-    assert orphan.id not in ids
+    assert orphan.id in ids
+
+    payees_by_id = {p.id: p for p in payees}
+    assert payees_by_id[active.id].transaction_count == 1
+    assert payees_by_id[orphan.id].transaction_count == 0
 
 
 # ---------------------------------------------------------------------------

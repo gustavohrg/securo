@@ -27,7 +27,7 @@ async def get_payees(session: AsyncSession, user_id: uuid.UUID) -> list[Payee]:
     result = await session.execute(
         select(Payee, tx_count.label("transaction_count"))
         .outerjoin(count_subq, Payee.id == count_subq.c.payee_id)
-        .where(Payee.user_id == user_id, tx_count > 0)
+        .where(Payee.user_id == user_id)
         .order_by(Payee.name)
     )
     payees = []
