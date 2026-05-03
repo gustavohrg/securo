@@ -470,7 +470,7 @@ function RuleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>{rule ? t('rules.editRule') : t('rules.newRule')}</DialogTitle>
         </DialogHeader>
@@ -509,7 +509,7 @@ function RuleDialog({
             </div>
             <div className="space-y-2">
               {conditions.map((cond, i) => (
-                <div key={i} className="flex items-center gap-2">
+                <div key={i} className="flex items-center gap-2 min-w-0">
                   <select
                     className={`${selectClass} w-32 shrink-0`}
                     value={cond.field}
@@ -530,7 +530,7 @@ function RuleDialog({
                   </select>
                   {cond.field === 'type' ? (
                     <select
-                      className={`${selectClass} flex-1`}
+                      className={`${selectClass} w-0 flex-1 min-w-0`}
                       value={String(cond.value)}
                       onChange={(e) => updateCondition(i, 'value', e.target.value)}
                     >
@@ -539,7 +539,7 @@ function RuleDialog({
                     </select>
                   ) : cond.field === 'account_id' ? (
                     <select
-                      className={`${selectClass} flex-1`}
+                      className={`${selectClass} w-0 flex-1 min-w-0`}
                       value={String(cond.value)}
                       onChange={(e) => updateCondition(i, 'value', e.target.value)}
                     >
@@ -550,7 +550,7 @@ function RuleDialog({
                     </select>
                   ) : cond.field === 'payee_id' ? (
                     <select
-                      className={`${selectClass} flex-1`}
+                      className={`${selectClass} w-0 flex-1 min-w-0`}
                       value={String(cond.value)}
                       onChange={(e) => updateCondition(i, 'value', e.target.value)}
                     >
@@ -561,7 +561,7 @@ function RuleDialog({
                     </select>
                   ) : (
                     <Input
-                      className="flex-1 h-8 text-sm"
+                      className="w-0 flex-1 min-w-0 h-8 text-sm"
                       value={String(cond.value)}
                       onChange={(e) => updateCondition(i, 'value', e.target.value)}
                       placeholder={cond.field === 'amount' ? '0.00' : cond.field === 'date' ? 'YYYY-MM-DD' : t('rules.valuePlaceholder')}
@@ -592,7 +592,7 @@ function RuleDialog({
             <Label>{t('rules.actions')}</Label>
             <div className="space-y-2">
               {actions.map((action, i) => (
-                <div key={i} className="flex items-center gap-2">
+                <div key={i} className="flex items-center gap-2 min-w-0">
                   <select
                     className={`${selectClass} w-40 shrink-0`}
                     value={action.op}
@@ -604,7 +604,7 @@ function RuleDialog({
                   </select>
                   {action.op === 'set_category' ? (
                     <select
-                      className={`${selectClass} flex-1`}
+                      className={`${selectClass} w-0 flex-1 min-w-0`}
                       value={action.value}
                       onChange={(e) => updateAction(i, 'value', e.target.value)}
                       required
@@ -616,7 +616,7 @@ function RuleDialog({
                     </select>
                   ) : action.op === 'set_payee' ? (
                     <select
-                      className={`${selectClass} flex-1`}
+                      className={`${selectClass} w-0 flex-1 min-w-0`}
                       value={action.value}
                       onChange={(e) => updateAction(i, 'value', e.target.value)}
                       required
@@ -628,7 +628,7 @@ function RuleDialog({
                     </select>
                   ) : (
                     <Input
-                      className="flex-1 h-8 text-sm"
+                      className="w-0 flex-1 min-w-0 h-8 text-sm"
                       value={action.value}
                       onChange={(e) => updateAction(i, 'value', e.target.value)}
                       placeholder="Ex: #work #reimbursable"
